@@ -1,0 +1,125 @@
+{
+  "name": "02 - Get KeyCRM Buyer (READ ONLY)",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "buyer_id",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "c1926a63-1c8f-4d10-b2d5-a7b7732a6081",
+      "name": "When executed by CRM Agent",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const incoming = $input.first()?.json || {};\nconst rawId = incoming.buyer_id;\nconst id = Number(rawId);\nif (!Number.isSafeInteger(id) || id < 1 || String(rawId ?? '').trim() === '') {\n  throw new Error('Invalid buyer_id: expected a positive integer. No CRM request sent.');\n}\nreturn [{json:{buyer_id:String(id)}}];"
+      },
+      "id": "b9928c57-3c35-4d66-9445-bd6b541d64f0",
+      "name": "Validate buyer ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://openapi.keycrm.app/v1/buyer/{{ $json.buyer_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "41b71ba1-b72e-4076-a36f-9bc312ddf1c4",
+      "name": "GET buyer from KeyCRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const body = $input.first().json || {};\nconst buyer = body && body.data && !Array.isArray(body.data) ? body.data : body;\nif (buyer.id === undefined || buyer.id === null) {\n  throw new Error('KeyCRM buyer payload has no id. Check API response mapping; do not send raw data to the agent.');\n}\nconst hasValue = v => v !== undefined && v !== null && (Array.isArray(v) ? v.length > 0 : String(v).trim() !== '');\nreturn [{\n  json: {\n    source: 'KeyCRM',\n    entity_type: 'buyer',\n    buyer_id: buyer.id,\n    manager_id: buyer.manager_id ?? null,\n    company_id: buyer.company_id ?? null,\n    created_at: buyer.created_at ?? null,\n    updated_at: buyer.updated_at ?? null,\n    has_full_name: hasValue(buyer.full_name),\n    has_phone: hasValue(buyer.phone) || hasValue(buyer.phones),\n    has_email: hasValue(buyer.email) || hasValue(buyer.emails),\n    available_top_level_field_names: Object.keys(buyer).filter(k => !['raw_data','contacts','phones','emails','addresses','shipping','custom_fields','full_name','phone','email'].includes(k)).slice(0,30),\n    personal_contact_details_excluded: true,\n    include_requested: false,\n    note: 'Read-only single buyer. Contacts, notes and shipping data deliberately omitted from AI output. No linked orders or card history queried.'\n  }\n}];"
+      },
+      "id": "c8a47f7e-f4e7-4ce7-adad-2c8b65c2da12",
+      "name": "Return minimal buyer summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "When executed by CRM Agent": {
+      "main": [
+        [
+          {
+            "node": "Validate buyer ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate buyer ID": {
+      "main": [
+        [
+          {
+            "node": "GET buyer from KeyCRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET buyer from KeyCRM": {
+      "main": [
+        [
+          {
+            "node": "Return minimal buyer summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
