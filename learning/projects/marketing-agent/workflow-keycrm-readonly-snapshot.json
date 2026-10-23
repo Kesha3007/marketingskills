@@ -1,0 +1,90 @@
+{
+  "name": "KeyCRM — read-only order sample (manual, no AI/no writes)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "119726b6-adcc-4f72-bb0f-81b47c3ef131",
+      "name": "Run only manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        280,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://openapi.keycrm.app/v1/order",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "50"
+            },
+            {
+              "name": "page",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "19898224-56c3-4964-a6ef-9f26318e9521",
+      "name": "GET KeyCRM orders (page 1)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// KeyCRM read-only sample: converts CRM API response into an aggregate.\n// Do not pass raw CRM records, comments, phones or addresses to an LLM.\nconst response = $input.first()?.json ?? {};\nconst orders = Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : []);\nconst byStatus = {};\nconst bySource = {};\nlet sampleGrandTotal = 0;\nlet knownAmounts = 0;\nconst clientIds = new Set();\nfor (const o of orders) {\n  const status = String(o.status_id ?? 'MISSING');\n  const source = String(o.source_id ?? 'MISSING');\n  byStatus[status] = (byStatus[status] ?? 0) + 1;\n  bySource[source] = (bySource[source] ?? 0) + 1;\n  const value = Number(o.grand_total);\n  if (o.grand_total !== undefined && o.grand_total !== null && Number.isFinite(value)) {\n    knownAmounts++; sampleGrandTotal += value;\n  }\n  if (o.client_id !== undefined && o.client_id !== null) clientIds.add(String(o.client_id));\n}\nreturn [{json:{\n  kind: 'keycrm_orders_readonly_sample',\n  generated_at_utc: new Date().toISOString(),\n  sample_size: orders.length,\n  max_requested: 50,\n  page_requested: 1,\n  is_complete_dataset: false,\n  note: 'Only page 1 (at most 50 orders); NOT a full period, lifetime or revenue report. Currency, sale status, price interpretation and status/source labels require validation.',\n  counts_by_status_id: byStatus,\n  counts_by_source_id: bySource,\n  distinct_client_ids_in_sample: clientIds.size,\n  sample_grand_total_raw: knownAmounts ? Math.round(sampleGrandTotal * 100) / 100 : null,\n  amount_fields_found: knownAmounts,\n  pagination_metadata: response.meta ? {current_page:response.meta.current_page ?? null, last_page:response.meta.last_page ?? null, total:response.meta.total ?? null} : null,\n  pii_removed_from_output:true\n}}];"
+      },
+      "id": "df3b93c1-7515-432d-af0b-1074f8a201c2",
+      "name": "Aggregate without personal data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "Run only manually": {
+      "main": [
+        [
+          {
+            "node": "GET KeyCRM orders (page 1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET KeyCRM orders (page 1)": {
+      "main": [
+        [
+          {
+            "node": "Aggregate without personal data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
