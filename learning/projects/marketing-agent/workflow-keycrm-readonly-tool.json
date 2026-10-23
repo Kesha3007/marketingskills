@@ -1,0 +1,90 @@
+{
+  "name": "TOOL — KeyCRM orders aggregate (GET only, no PII to agent)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a078d211-19da-4d50-a48e-2b1a27b0501c",
+      "name": "When called as a tool",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://openapi.keycrm.app/v1/order",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "50"
+            },
+            {
+              "name": "page",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8d40a200-c1d4-4fc1-8877-2f8136a06e22",
+      "name": "GET latest 50 orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Only aggregated counts leave this sub-workflow. Personal data must NOT reach the agent.\nconst payload = $input.first()?.json ?? {};\nconst orders = Array.isArray(payload.data) ? payload.data : [];\nconst statusCounts = Object.create(null);\nconst sourceCounts = Object.create(null);\nlet sum = 0, amounts = 0;\nfor (const o of orders) {\n  const s = String(o.status_id ?? 'unknown');\n  const source = String(o.source_id ?? 'unknown');\n  statusCounts[s] = (statusCounts[s] || 0) + 1;\n  sourceCounts[source] = (sourceCounts[source] || 0) + 1;\n  if (o.grand_total !== undefined && o.grand_total !== null && Number.isFinite(Number(o.grand_total))) {\n    sum += Number(o.grand_total);\n    amounts++;\n  }\n}\nreturn [{json:{\n  result_type: \"KeyCRM_first_page_only\",\n  sample_orders: orders.length,\n  max_requested: 50,\n  page: 1,\n  status_id_counts: statusCounts,\n  source_id_counts: sourceCounts,\n  sample_grand_total: amounts ? Math.round(sum * 100)/100 : null,\n  records_with_grand_total: amounts,\n  data_completeness: \"INCOMPLETE: only page 1, no date filter; do not report totals or conversion rates for a month/all orders.\",\n  status_mapping_required: true,\n  source_mapping_required: true,\n  currency_not_verified: true,\n  raw_client_data_sent_to_agent: false\n}}];"
+      },
+      "id": "9d347f46-f257-4ee5-bb95-3167644f45ee",
+      "name": "Return counts without personal details",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        280
+      ]
+    }
+  ],
+  "connections": {
+    "When called as a tool": {
+      "main": [
+        [
+          {
+            "node": "GET latest 50 orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET latest 50 orders": {
+      "main": [
+        [
+          {
+            "node": "Return counts without personal details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
