@@ -1,5 +1,5 @@
 {
-  "name": "01 - CRM AI Agent (PRIVATE DRAFT)",
+  "name": "01 - CRM AI Agent (DRAFT; use current AI Agent node)",
   "nodes": [
     {
       "parameters": {
@@ -26,7 +26,7 @@
       "id": "d7a4832d-e83b-46a4-9aca-756d29a9432e",
       "name": "AI CRM Agent",
       "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2.2,
+      "typeVersion": 3,
       "position": [
         440,
         320
