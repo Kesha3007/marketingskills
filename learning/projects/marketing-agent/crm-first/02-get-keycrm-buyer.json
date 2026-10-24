@@ -40,7 +40,7 @@
         "method": "GET",
         "url": "=https://openapi.keycrm.app/v1/buyer/{{ $json.buyer_id }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpBearerAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
